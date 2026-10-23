@@ -17,6 +17,8 @@ jobs:
         with:
           distribution: temurin
           java-version: '17'
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
 
       - name: Set up Android SDK
         uses: android-actions/setup-android@v4
@@ -39,18 +41,16 @@ jobs:
       - name: Find Android project
         id: project
         run: |
-          GRADLE_FILE=$(find project -name gradlew -type f | head -n 1)
-          if [ -z "$GRADLE_FILE" ]; then
-            echo "No Gradle wrapper (gradlew) found in the ZIP."
-            echo "The uploaded ZIP may be a source scaffold rather than a build-ready project."
+          BUILD_FILE=$(find project -name settings.gradle -type f | head -n 1)
+          if [ -z "$BUILD_FILE" ]; then
+            echo "No settings.gradle found in ZIP."
             exit 1
           fi
-          echo "dir=$(dirname "$GRADLE_FILE")" >> "$GITHUB_OUTPUT"
-          chmod +x "$GRADLE_FILE"
+          echo "dir=$(dirname "$BUILD_FILE")" >> "$GITHUB_OUTPUT"
 
       - name: Build debug APK
         working-directory: ${{ steps.project.outputs.dir }}
-        run: ./gradlew assembleDebug
+        run: gradle assembleDebug
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
