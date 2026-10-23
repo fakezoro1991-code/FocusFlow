@@ -18,6 +18,9 @@ jobs:
           distribution: temurin
           java-version: '17'
 
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+
       - name: Set up Android SDK
         uses: android-actions/setup-android@v4
 
@@ -28,29 +31,36 @@ jobs:
         run: |
           mkdir -p project
           ZIP_FILE=$(find . -maxdepth 1 -type f -iname '*.zip' | head -n 1)
+
           if [ -z "$ZIP_FILE" ]; then
-            echo "No project ZIP found in repository root."
+            echo "ERROR: No project ZIP found in repository root."
             exit 1
           fi
+
+          echo "Using ZIP: $ZIP_FILE"
           unzip -q "$ZIP_FILE" -d project
-          echo "Extracted project files:"
-          find project -maxdepth 3 -type f | head -100
+
+          echo "Extracted files:"
+          find project -maxdepth 5 -type f | head -100
 
       - name: Find Android project
         id: project
         run: |
-          GRADLE_FILE=$(find project -name gradlew -type f | head -n 1)
-          if [ -z "$GRADLE_FILE" ]; then
-            echo "No Gradle wrapper (gradlew) found in the ZIP."
-            echo "The uploaded ZIP may be a source scaffold rather than a build-ready project."
+          BUILD_FILE=$(find project \( -name settings.gradle -o -name settings.gradle.kts \) -type f | head -n 1)
+
+          if [ -z "$BUILD_FILE" ]; then
+            echo "ERROR: No Gradle settings file found in the ZIP."
+            echo "The project may be an incomplete Android scaffold."
             exit 1
           fi
-          echo "dir=$(dirname "$GRADLE_FILE")" >> "$GITHUB_OUTPUT"
-          chmod +x "$GRADLE_FILE"
+
+          PROJECT_DIR=$(dirname "$BUILD_FILE")
+          echo "Android project directory: $PROJECT_DIR"
+          echo "dir=$PROJECT_DIR" >> "$GITHUB_OUTPUT"
 
       - name: Build debug APK
         working-directory: ${{ steps.project.outputs.dir }}
-        run: ./gradlew assembleDebug
+        run: gradle assembleDebug
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
