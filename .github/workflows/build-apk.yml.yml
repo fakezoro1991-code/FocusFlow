@@ -1,0 +1,61 @@
+
+name: Build FocusFlow APK
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Install unzip
+        run: sudo apt-get update && sudo apt-get install -y unzip
+
+      - name: Extract project ZIP
+        run: |
+          mkdir -p project
+          ZIP_FILE=$(find . -maxdepth 1 -type f -iname '*.zip' | head -n 1)
+          if [ -z "$ZIP_FILE" ]; then
+            echo "No project ZIP found in repository root."
+            exit 1
+          fi
+          unzip -q "$ZIP_FILE" -d project
+          echo "Extracted project files:"
+          find project -maxdepth 3 -type f | head -100
+
+      - name: Find Android project
+        id: project
+        run: |
+          GRADLE_FILE=$(find project -name gradlew -type f | head -n 1)
+          if [ -z "$GRADLE_FILE" ]; then
+            echo "No Gradle wrapper (gradlew) found in the ZIP."
+            echo "The uploaded ZIP may be a source scaffold rather than a build-ready project."
+            exit 1
+          fi
+          echo "dir=$(dirname "$GRADLE_FILE")" >> "$GITHUB_OUTPUT"
+          chmod +x "$GRADLE_FILE"
+
+      - name: Build debug APK
+        working-directory: ${{ steps.project.outputs.dir }}
+        run: ./gradlew assembleDebug
+
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: FocusFlow-debug-APK
+          path: project/**/build/outputs/apk/debug/*.apk
+          if-no-files-found: error
+          
